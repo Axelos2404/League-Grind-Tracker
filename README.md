@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="GrindTracker.jpg" alt="Grind Tracker Logo" width="200"/>
+  <img src="GrindTracker.png" alt="Grind Tracker Logo" width="200"/>
   
   # League Tracker Pro
   **A simple, ranked Q tracking overlay for League of Legends.**
