@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="tracker-card" style="-webkit-app-region: drag;">
+    
+    <svg id="settingsBtn" class="settings-btn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+
+    <div id="settingsOverlay" class="settings-overlay" style="display: none;">
+      <div class="settings-title">SETTINGS</div>
+      
+      <div class="setting-group">
+        <label>Accent Color</label>
+        <input type="color" id="colorPicker" value="#ffd166">
+      </div>
+      
+      <div class="setting-group">
+        <label>Background Opacity</label>
+        <input type="range" id="opacitySlider" min="0.2" max="1.0" step="0.05" value="0.88">
+      </div>
+      
+      <div class="setting-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
+        <label style="margin:0;">Save Session on Exit</label>
+        <input type="checkbox" id="saveSessionToggle">
+      </div>
+      
+      <button id="closeSettingsBtn" class="close-settings">DONE</button>
+    </div>
+
+    <div class="header">
+      <div id="status" class="wins-until">WAITING FOR LEAGUE...</div>
+      <div class="tier-row">
+        <div id="tier" class="tier">LOADING</div>
+        <div id="lp" class="lp">0 LP</div>
+      </div>
+      <div class="progress">
+        <div class="progress-bg"><div id="bar" class="progress-fill" style="width: 0%"></div></div>
+        <div class="progress-labels">
+          <span id="leftLabel"></span>
+          <span id="percentLabel">0%</span>
+          <span id="rightLabel"></span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="last-games">
+      <div class="title">LAST 5 SOLO/DUO GAMES</div>
+      <div id="gamesRow" class="games"></div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat">
+        <div id="sessionRecord" class="stat-value">0-0</div>
+        <div class="stat-label">SESSION</div>
+      </div>
+      <div class="stat">
+        <div id="winRate" class="stat-value">0%</div>
+        <div class="stat-label">WIN RATE</div>
+      </div>
+      <div class="stat">
+        <div id="netLp" class="stat-value" style="color: #4bbf73;">+0</div>
+        <div class="stat-label">NET LP</div>
+      </div>
+    </div>
+
+    <div class="bottom-row">
+      <div class="timer">
+        <span class="label">GRIND TIMER</span><br>
+        <span id="grindTimer" class="value">00:00:00</span>
+      </div>
+      <div class="games-played">
+        <span class="label">GAMES</span><br>
+        <span id="gamesCount" class="value">0</span>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

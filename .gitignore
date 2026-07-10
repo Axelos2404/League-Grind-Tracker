@@ -1,0 +1,21 @@
+# Node Dependencies (Never upload this, GitHub will build it automatically)
+node_modules/
+
+# Electron Builder Outputs (The massive .exe files and setup wizards)
+dist/
+build/
+out/
+.icon-ico/
+
+# Environment Variables (SECURITY CRITICAL)
+.env
+.env.local
+
+# NPM Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Generated Files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,33 @@
+{
+  "name": "grind-tracker",
+  "version": "1.0.0",
+  "description": "Grind Tracker for League of Legends, to see how much of a loser or chad you are in ranked.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.yourname.grindtracker",
+    "productName": "Grind Tracker", 
+    "win": {
+      "target": ["nsis", "portable"], 
+      "icon": "GrindTracker.png" 
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": false,
+      "shortcutName": "Grind Tracker"
+    }
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}
