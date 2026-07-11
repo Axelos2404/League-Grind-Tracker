@@ -233,13 +233,17 @@ setInterval(async () => {
   try {
     const currentPhase = await window.api.getGameflow();
     
-    // Check if we just transitioned out of an active game
-    if (lastPhase === "InProgress" && (currentPhase === "EndOfGame" || currentPhase === "WaitingForStats" || currentPhase === "None")) {
+    // CHECK: If it was active, and now it's literally anything else (Lobby, EndOfGame, etc.)
+    if (lastPhase === "InProgress" && currentPhase !== "InProgress") {
       waitForRiotServer(); // Start the smart polling loop
     }
     
     lastPhase = currentPhase;
   } catch (e) {
-    lastPhase = "None"; // Failsafe if League is closed
+    // FAILSAFE: If the League client crashes/closes immediately after the Nexus explodes
+    if (lastPhase === "InProgress") {
+      waitForRiotServer();
+    }
+    lastPhase = "None"; // Reset state safely
   }
 }, 5000);
