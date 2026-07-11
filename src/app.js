@@ -194,6 +194,38 @@ fetch('https://ddragon.leagueoflegends.com/api/versions.json')
 // Automatically sync the data on startup
 updateTracker();
 
+// THE SMART POST-GAME POLLER
+let matchFoundTime = null;
+
+async function waitForRiotServer(attempts = 0) {
+  if (attempts > 60) {
+    matchFoundTime = null;
+    return; // Failsafe timeout after 10 minutes
+  }
+
+  const res = await window.api.autoDetect();
+  if (res.success && res.data) {
+    const latestMatch = res.data.recentGames[0];
+    const isNewMatch = latestMatch && !session.seenMatchIds.has(latestMatch.matchId);
+    const lpChanged = res.data.absoluteLp !== session.lastAbsoluteLp;
+
+    if (isNewMatch) {
+      if (!matchFoundTime) matchFoundTime = Date.now();
+
+      // Riot's LP server is slower than the Match server. 
+      // We wait until LP changes, OR 90 seconds have passed (in case of a +0 LP dodge/remake).
+      if (lpChanged || (Date.now() - matchFoundTime > 90000)) {
+        updateTracker(); 
+        matchFoundTime = null;
+        return; 
+      }
+    }
+  }
+  
+  // Check again in 10 seconds
+  setTimeout(() => waitForRiotServer(attempts + 1), 10000);
+}
+
 // THE ZERO RATE-LIMIT GAMEFLOW TRACKER
 let lastPhase = "None";
 
@@ -203,12 +235,11 @@ setInterval(async () => {
     
     // Check if we just transitioned out of an active game
     if (lastPhase === "InProgress" && (currentPhase === "EndOfGame" || currentPhase === "WaitingForStats" || currentPhase === "None")) {
-      console.log("Match ended! Waiting 5 seconds for Riot API to process...");
-      setTimeout(updateTracker, 5000);
+      waitForRiotServer(); // Start the smart polling loop
     }
     
     lastPhase = currentPhase;
   } catch (e) {
     lastPhase = "None"; // Failsafe if League is closed
   }
-}, 5000); // Polls local client every 5 seconds. 0 requests to Riot Servers!
+}, 5000);

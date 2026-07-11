@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
 const riot = require('./riotClient');
 
@@ -19,10 +19,42 @@ app.whenReady().then(() => {
     webPreferences: { preload: path.join(__dirname, 'preload.js') }
   });
 
-  // THE NUCLEAR ALWAYS-ON-TOP OPTION
   win.setAlwaysOnTop(true, 'screen-saver');
 
+  // MAKE IT CLICK-THROUGH BY DEFAULT
+  win.setIgnoreMouseEvents(true);
+
+// REGISTER THE TOGGLE HOTKEY (Ctrl + Shift + L)
+  let isLocked = true;
+  globalShortcut.register('CommandOrControl+Shift+L', () => {
+    isLocked = !isLocked;
+    win.setIgnoreMouseEvents(isLocked);
+    
+    // VISUAL FEEDBACK INJECTION (Scoped & Edge-Pinned)
+    win.webContents.executeJavaScript(`
+      {
+        let card = document.querySelector('.tracker-card');
+        if (card) {
+          let overlay = document.getElementById('unlock-border');
+          if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'unlock-border';
+            // Pinned strictly to the edges of the card, ignoring content height
+            overlay.style.cssText = 'position:absolute; top:0; bottom:0; left:0; right:0; border: 3px dashed #ff7b7b; border-radius: 10px; pointer-events:none; z-index:9999; box-sizing:border-box; transition: opacity 0.2s ease;';
+            card.appendChild(overlay);
+          }
+          overlay.style.opacity = ${isLocked ? "'0'" : "'1'"};
+        }
+      }
+    `).catch(err => console.log('Visual update skipped:', err.message));
+  });
+  
   win.loadFile('index.html');
+});
+
+// CLEAN UP HOTKEYS WHEN THE APP CLOSES
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 ipcMain.handle('auto-detect', async () => {
@@ -50,7 +82,7 @@ ipcMain.handle('auto-detect', async () => {
   }
 });
 
-// NEW: Pass the gameflow check to the frontend
+// Pass the gameflow check to the frontend
 ipcMain.handle('get-gameflow', async () => {
   return await riot.getGameflowPhase();
 });

@@ -1,5 +1,6 @@
 {
   "name": "grind-tracker",
+  "author": "L3x7or",
   "version": "1.0.0",
   "description": "Grind Tracker for League of Legends, to see how much of a loser or chad you are in ranked.",
   "main": "main.js",
