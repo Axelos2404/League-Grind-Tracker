@@ -20,17 +20,20 @@ app.whenReady().then(() => {
   });
 
   win.setAlwaysOnTop(true, 'screen-saver');
-
-  // MAKE IT CLICK-THROUGH BY DEFAULT
   win.setIgnoreMouseEvents(true);
 
-// REGISTER THE TOGGLE HOTKEY (Ctrl + Shift + L)
+  // STATE VARIABLES
   let isLocked = true;
+  let isHidden = false;
+
+  // DRAG/INTERACT HOTKEY (Ctrl + Shift + L)
   globalShortcut.register('CommandOrControl+Shift+L', () => {
+    if (isHidden) return; // THE SHIELD: Do absolutely nothing if the widget is invisible!
+
     isLocked = !isLocked;
     win.setIgnoreMouseEvents(isLocked);
     
-    // VISUAL FEEDBACK INJECTION (Scoped & Edge-Pinned)
+    // VISUAL FEEDBACK INJECTION
     win.webContents.executeJavaScript(`
       {
         let card = document.querySelector('.tracker-card');
@@ -39,7 +42,6 @@ app.whenReady().then(() => {
           if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'unlock-border';
-            // Pinned strictly to the edges of the card, ignoring content height
             overlay.style.cssText = 'position:absolute; top:0; bottom:0; left:0; right:0; border: 3px dashed #ff7b7b; border-radius: 10px; pointer-events:none; z-index:9999; box-sizing:border-box; transition: opacity 0.2s ease;';
             card.appendChild(overlay);
           }
@@ -48,7 +50,65 @@ app.whenReady().then(() => {
       }
     `).catch(err => console.log('Visual update skipped:', err.message));
   });
-  
+
+  // MANUAL HIDE/SHOW HOTKEY (Ctrl + Shift + H)
+  globalShortcut.register('CommandOrControl+Shift+H', () => {
+    isHidden = !isHidden;
+
+    // FORCE LOCK: If the app is hiding, make sure it locks itself!
+    if (isHidden && !isLocked) {
+      isLocked = true;
+      win.setIgnoreMouseEvents(true);
+    }
+
+    // UNIFIED COMMAND: Wrapped in {} to prevent redeclaration errors
+    win.webContents.executeJavaScript(`
+      {
+        document.body.style.transition = 'opacity 0.4s ease-in-out';
+        document.body.style.opacity = ${isHidden ? "'0'" : "'1'"};
+        document.body.style.pointerEvents = ${isHidden ? "'none'" : "''"};
+        
+        let ob = document.getElementById('unlock-border');
+        if (ob) ob.style.opacity = ${isLocked ? "'0'" : "'1'"};
+      }
+    `).catch(err => console.log('Hide toggle skipped:', err.message));
+  });
+
+  // IPC LISTENER FOR AUTO-HIDE
+  ipcMain.on('set-window-visibility', (event, shouldShow) => {
+    if (shouldShow && isHidden) {
+      isHidden = false;
+      win.webContents.executeJavaScript(`
+        {
+          document.body.style.transition = 'opacity 0.4s ease-in-out';
+          document.body.style.opacity = '1';
+          document.body.style.pointerEvents = '';
+          
+          let ob = document.getElementById('unlock-border');
+          if (ob) ob.style.opacity = ${isLocked ? "'0'" : "'1'"};
+        }
+      `).catch(err => console.log(err.message));
+    } else if (!shouldShow && !isHidden) {
+      isHidden = true;
+      
+      if (!isLocked) {
+        isLocked = true;
+        win.setIgnoreMouseEvents(true);
+      }
+
+      win.webContents.executeJavaScript(`
+        {
+          document.body.style.transition = 'opacity 0.4s ease-in-out';
+          document.body.style.opacity = '0';
+          document.body.style.pointerEvents = 'none';
+          
+          let ob = document.getElementById('unlock-border');
+          if (ob) ob.style.opacity = '0';
+        }
+      `).catch(err => console.log(err.message));
+    }
+  });
+
   win.loadFile('index.html');
 });
 

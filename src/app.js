@@ -2,6 +2,7 @@
 const savedColor = localStorage.getItem('accentColor') || '#ffd166';
 const savedOpacity = localStorage.getItem('bgOpacity') || '0.88';
 const shouldSaveSession = localStorage.getItem('saveSession') === 'true';
+const shouldAutoHideInit = localStorage.getItem('autoHide') !== 'false';
 
 // Apply saved settings to the UI instantly
 document.documentElement.style.setProperty('--accent-color', savedColor);
@@ -11,7 +12,7 @@ document.documentElement.style.setProperty('--bg-opacity', savedOpacity);
 document.getElementById('colorPicker').value = savedColor;
 document.getElementById('opacitySlider').value = savedOpacity;
 document.getElementById('saveSessionToggle').checked = shouldSaveSession;
-
+document.getElementById('autoHideToggle').checked = shouldAutoHideInit;
 // --- SESSION STATE ---
 let session = {
   active: false, startTime: null, startAbsoluteLp: 0, lastAbsoluteLp: 0,
@@ -78,6 +79,11 @@ document.getElementById('opacitySlider').addEventListener('input', (e) => {
 document.getElementById('saveSessionToggle').addEventListener('change', (e) => {
   localStorage.setItem('saveSession', e.target.checked);
   saveSessionToStorage(); // Save immediately or wipe depending on the box
+});
+
+document.getElementById('autoHideToggle').addEventListener('change', (e) => {
+  localStorage.setItem('autoHide', e.target.checked);
+  // Note: requires app restart to fully apply to the gameflow loop
 });
 
 // --- GRIND TIMER LOGIC ---
@@ -228,11 +234,22 @@ async function waitForRiotServer(attempts = 0) {
 
 // THE ZERO RATE-LIMIT GAMEFLOW TRACKER
 let lastPhase = "None";
+// Check if the user wants Auto-Hide enabled (defaults to true)
+const shouldAutoHide = localStorage.getItem('autoHide') !== 'false'; 
 
 setInterval(async () => {
   try {
     const currentPhase = await window.api.getGameflow();
     
+    // NEW: AUTO-HIDE LOGIC
+    if (shouldAutoHide && lastPhase !== currentPhase) {
+      if (currentPhase === "InProgress") {
+        window.api.setVisibility(false); // Hide when game starts
+      } else if (lastPhase === "InProgress") {
+        window.api.setVisibility(true);  // Show when game ends
+      }
+    }
+
     // CHECK: If it was active, and now it's literally anything else (Lobby, EndOfGame, etc.)
     if (lastPhase === "InProgress" && currentPhase !== "InProgress") {
       waitForRiotServer(); // Start the smart polling loop
@@ -242,6 +259,7 @@ setInterval(async () => {
   } catch (e) {
     // FAILSAFE: If the League client crashes/closes immediately after the Nexus explodes
     if (lastPhase === "InProgress") {
+      if (shouldAutoHide) window.api.setVisibility(true); // Ensure it un-hides!
       waitForRiotServer();
     }
     lastPhase = "None"; // Reset state safely
