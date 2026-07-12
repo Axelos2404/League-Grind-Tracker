@@ -49,7 +49,7 @@ async function detectLocalPlayer() {
   return requestJson(`https://127.0.0.1:${lockfile.port}/lol-summoner/v1/current-summoner`, auth, true);
 }
 
-// NEW: Zero-Rate-Limit Local Game State Checker
+// Zero-Rate-Limit Local Game State Checker
 async function getGameflowPhase() {
   try {
     const lockfile = getLocalClient();
