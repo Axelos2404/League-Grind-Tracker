@@ -1,14 +1,14 @@
 <div align="center">
   <img src="GrindTracker.png" alt="Grind Tracker Logo" width="200"/>
   
-  # League Tracker Pro
+  # League Grind Tracker
   **A simple, ranked Q tracking overlay for League of Legends.**
 </div>
 
 ---
 
 ## 📖 Overview
-League Tracker Pro is a lightweight desktop overlay built with Electron. It sits cleanly over your Borderless game window to give you real-time analytics on your current ranked grind session. 
+League Grind Tracker is a lightweight desktop overlay built with Electron. It sits cleanly over your Borderless game window to give you real-time analytics on your current ranked grind session. 
 
 Instead of constantly pinging the Riot API and risking rate-limit bans, this tracker utilizes a **Zero-Rate-Limit Architecture**. It hooks into your local League Client's gameflow phase and only requests public match data exactly when your game ends.
 
@@ -30,7 +30,7 @@ Instead of constantly pinging the Riot API and risking rate-limit bans, this tra
 
 ### 1. Clone & Install
 ```bash
-git clone [https://github.com/YOUR_USERNAME/League-Grind-Tracker.git](https://github.com/YOUR_USERNAME/League-Grind-Tracker.git)
+git clone [https://github.com/Axelos2404/League-Grind-Tracker.git](https://github.com/Axelos2404/League-Grind-Tracker.git)
 cd League-Grind-Tracker
 npm install
 ```
@@ -56,4 +56,4 @@ The compiled files will be generated inside the dist/ folder.
 ---
 
 ### ⚠️ Disclaimer
-League Tracker Pro isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+League Grind Tracker isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
