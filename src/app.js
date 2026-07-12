@@ -2,7 +2,7 @@
 const savedColor = localStorage.getItem('accentColor') || '#ffd166';
 const savedOpacity = localStorage.getItem('bgOpacity') || '0.88';
 const shouldSaveSession = localStorage.getItem('saveSession') === 'true';
-const shouldAutoHideInit = localStorage.getItem('autoHide') !== 'false';
+const shouldAutoHideInit = localStorage.getItem('autoHide') === 'true';
 
 // Apply saved settings to the UI instantly
 document.documentElement.style.setProperty('--accent-color', savedColor);
@@ -234,15 +234,16 @@ async function waitForRiotServer(attempts = 0) {
 
 // THE ZERO RATE-LIMIT GAMEFLOW TRACKER
 let lastPhase = "None";
-// Check if the user wants Auto-Hide enabled (defaults to true)
-const shouldAutoHide = localStorage.getItem('autoHide') !== 'false'; 
 
 setInterval(async () => {
   try {
     const currentPhase = await window.api.getGameflow();
     
-    // NEW: AUTO-HIDE LOGIC
-    if (shouldAutoHide && lastPhase !== currentPhase) {
+    // DYNAMIC CHECK: Reads your live settings every 5 seconds!
+    const isAutoHideEnabled = localStorage.getItem('autoHide') !== 'false'; 
+    
+    // AUTO-HIDE LOGIC
+    if (isAutoHideEnabled && lastPhase !== currentPhase) {
       if (currentPhase === "InProgress") {
         window.api.setVisibility(false); // Hide when game starts
       } else if (lastPhase === "InProgress") {
@@ -259,7 +260,8 @@ setInterval(async () => {
   } catch (e) {
     // FAILSAFE: If the League client crashes/closes immediately after the Nexus explodes
     if (lastPhase === "InProgress") {
-      if (shouldAutoHide) window.api.setVisibility(true); // Ensure it un-hides!
+      const isAutoHideEnabled = localStorage.getItem('autoHide') !== 'false';
+      if (isAutoHideEnabled) window.api.setVisibility(true); // Ensure it un-hides!
       waitForRiotServer();
     }
     lastPhase = "None"; // Reset state safely
