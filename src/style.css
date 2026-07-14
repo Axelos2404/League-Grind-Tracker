@@ -65,6 +65,26 @@ body { margin: 10px; background: transparent; font-family: 'Segoe UI', Roboto, s
   -webkit-app-region: no-drag;
   overflow-y: auto;
 }
+
+/* Custom Scrollbar for Settings Overlay */
+.settings-overlay::-webkit-scrollbar {
+  width: 6px; /* Makes the scrollbar thin and modern */
+}
+
+.settings-overlay::-webkit-scrollbar-track {
+  background: transparent; /* Hides the chunky grey track */
+  border-radius: 10px;
+}
+
+.settings-overlay::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15); /* Subtle transparent white */
+  border-radius: 10px; /* Rounds the edges of the draggable part */
+}
+
+.settings-overlay::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3); /* Brightens slightly when hovered */
+}
+
 .settings-title { font-weight: 800; font-size: 14px; text-align: center; color: #fff; letter-spacing: 1px; margin-bottom: 5px; }
 .setting-group { display: flex; flex-direction: column; gap: 5px; }
 .setting-group label { font-size: 10px; color: rgba(255,255,255,0.7); font-weight: bold; text-transform: uppercase; }
