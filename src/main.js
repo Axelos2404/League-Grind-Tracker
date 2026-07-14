@@ -11,9 +11,15 @@ const DIV_VALUES = { IV: 0, III: 100, II: 200, I: 300 };
 
 function getAbsoluteLp(entry) {
   if (!entry) return 0;
-  // Apex tiers don't have divisions, so we default the division value to 0 if it's missing or 'I'
+  const tier = entry.tier.toUpperCase();
+  
+  // Apex tiers ignore divisions and just stack infinite LP on top of the 2800 baseline
+  if (['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier)) {
+    return 2800 + entry.leaguePoints;
+  }
+  
   const divValue = DIV_VALUES[entry.rank ? entry.rank.toUpperCase() : 'IV'] || 0;
-  return (TIER_VALUES[entry.tier.toUpperCase()] || 0) + divValue + entry.leaguePoints;
+  return (TIER_VALUES[tier] || 0) + divValue + entry.leaguePoints;
 }
 
 app.whenReady().then(() => {

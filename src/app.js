@@ -3,6 +3,7 @@ const savedColor = localStorage.getItem('accentColor') || '#ffd166';
 const savedOpacity = localStorage.getItem('bgOpacity') || '0.88';
 const shouldSaveSession = localStorage.getItem('saveSession') === 'true';
 const shouldAutoHideInit = localStorage.getItem('autoHide') === 'true';
+const shouldFillGraph = localStorage.getItem('fillGraph') === 'true';
 
 // --- LOAD LP HISTORY ---
 let lpHistory = JSON.parse(localStorage.getItem('lpHistory')) || [];
@@ -16,6 +17,8 @@ document.getElementById('colorPicker').value = savedColor;
 document.getElementById('opacitySlider').value = savedOpacity;
 document.getElementById('saveSessionToggle').checked = shouldSaveSession;
 document.getElementById('autoHideToggle').checked = shouldAutoHideInit;
+document.getElementById('fillGraphToggle').checked = shouldFillGraph;
+
 // --- SESSION STATE ---
 let session = {
   active: false, startTime: null, startAbsoluteLp: 0, lastAbsoluteLp: 0,
@@ -86,7 +89,10 @@ document.getElementById('saveSessionToggle').addEventListener('change', (e) => {
 
 document.getElementById('autoHideToggle').addEventListener('change', (e) => {
   localStorage.setItem('autoHide', e.target.checked);
-  // Note: requires app restart to fully apply to the gameflow loop
+});
+
+document.getElementById('fillGraphToggle').addEventListener('change', (e) => {
+  localStorage.setItem('fillGraph', e.target.checked);
 });
 
 // --- GRIND TIMER LOGIC ---

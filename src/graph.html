@@ -35,7 +35,6 @@
     .title { font-weight: 800; font-size: 18px; letter-spacing: 1px; }
     .subtitle { font-size: 12px; color: #aaa; }
     
-    /* UPDATED: Dynamic cursors only apply when Shift is pressed */
     .chart-container { flex-grow: 1; position: relative; }
     .chart-container.shift-pressed { cursor: grab; }
     .chart-container.shift-pressed:active { cursor: grabbing; } 
@@ -64,7 +63,6 @@
     <canvas id="lpChart"></canvas>
   </div>
 
-  <!-- SCRIPTS MOVED TO BOTTOM FOR GUARANTEED UI RENDERING -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
@@ -74,26 +72,56 @@
     document.getElementById('maxBtn').addEventListener('click', () => window.api.maximizeGraph());
     document.getElementById('closeBtn').addEventListener('click', () => window.api.closeGraph());
 
-    // --- DYNAMIC SHIFT CURSOR ---
     const wrapper = document.getElementById('chartWrapper');
     window.addEventListener('keydown', (e) => { if (e.key === 'Shift') wrapper.classList.add('shift-pressed'); });
     window.addEventListener('keyup', (e) => { if (e.key === 'Shift') wrapper.classList.remove('shift-pressed'); });
 
     const historyData = JSON.parse(localStorage.getItem('lpHistory')) || [];
+    const fillGraphEnabled = localStorage.getItem('fillGraph') === 'true';
+
     document.getElementById('subText').textContent = `Tracking last ${historyData.length} LP updates (Hold SHIFT to drag and zoom)`;
 
+    // --- 1. FIND TRUE ORGANIC PROMOTION THRESHOLDS ---
+    let gmThreshold = null;
+    let cThreshold = null;
+
+    for (let i = 0; i < historyData.length; i++) {
+      if (!gmThreshold && historyData[i].tierName === 'GRANDMASTER') gmThreshold = historyData[i].lp;
+      if (!cThreshold && historyData[i].tierName === 'CHALLENGER') cThreshold = historyData[i].lp;
+    }
+
+    // --- 2. BUILD BANDS DYNAMICALLY ---
     const BAND_TIERS = [
-      { name: 'I',  min: 0,    max: 400,  bg: 'rgba(140, 140, 140, 0.20)' },
-      { name: 'B',  min: 400,  max: 800,  bg: 'rgba(168, 104, 66, 0.20)' },
-      { name: 'S',  min: 800,  max: 1200, bg: 'rgba(160, 180, 184, 0.20)' },
-      { name: 'G',  min: 1200, max: 1600, bg: 'rgba(255, 209, 102, 0.20)' },
-      { name: 'P',  min: 1600, max: 2000, bg: 'rgba(72, 201, 176, 0.20)' },
-      { name: 'E',  min: 2000, max: 2400, bg: 'rgba(75, 191, 115, 0.20)' },
-      { name: 'D',  min: 2400, max: 2800, bg: 'rgba(138, 115, 255, 0.20)' },
-      { name: 'M',  min: 2800, max: 3200, bg: 'rgba(200, 112, 216, 0.20)' }, 
-      { name: 'GM', min: 3200, max: 3600, bg: 'rgba(233, 80, 80, 0.20)' },   
-      { name: 'C',  min: 3600, max: 7000, bg: 'rgba(80, 233, 216, 0.20)' }   
+      { name: 'I',  min: 0,    max: 400,  bg: 'rgba(140, 140, 140, 0.08)' },
+      { name: 'B',  min: 400,  max: 800,  bg: 'rgba(168, 104, 66, 0.10)' },
+      { name: 'S',  min: 800,  max: 1200, bg: 'rgba(160, 180, 184, 0.08)' },
+      { name: 'G',  min: 1200, max: 1600, bg: 'rgba(255, 209, 102, 0.10)' },
+      { name: 'P',  min: 1600, max: 2000, bg: 'rgba(72, 201, 176, 0.10)' },
+      { name: 'E',  min: 2000, max: 2400, bg: 'rgba(75, 191, 115, 0.10)' },
+      { name: 'D',  min: 2400, max: 2800, bg: 'rgba(138, 115, 255, 0.10)' }
     ];
+
+    BAND_TIERS.push({ 
+      name: 'M', min: 2800, 
+      max: gmThreshold ? gmThreshold : 15000, 
+      bg: 'rgba(200, 112, 216, 0.10)' 
+    });
+
+    if (gmThreshold) {
+      BAND_TIERS.push({ 
+        name: 'GM', min: gmThreshold, 
+        max: cThreshold ? cThreshold : 15000, 
+        bg: 'rgba(233, 80, 80, 0.10)' 
+      });
+    }
+
+    if (cThreshold) {
+      BAND_TIERS.push({ 
+        name: 'C', min: cThreshold, 
+        max: 15000, 
+        bg: 'rgba(80, 233, 216, 0.10)' 
+      });
+    }
 
     const TIER_COLORS = {
       'IRON': '#8c8c8c', 'BRONZE': '#a86842', 'SILVER': '#a0b4b8',
@@ -145,12 +173,13 @@
 
     const sessionLinesPlugin = {
       id: 'sessionLines',
-      beforeDraw(chart) {
+      // CHANGED: Render AFTER datasets so lines paint over the shaded fill!
+      afterDatasetsDraw(chart) {
         const { ctx, chartArea, scales: { x } } = chart;
         ctx.save();
         ctx.beginPath();
         ctx.setLineDash([5, 5]); 
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; // Slightly brighter to pop over fill
         ctx.lineWidth = 1;
         
         historyData.forEach((d, i) => {
@@ -164,7 +193,7 @@
         });
         ctx.stroke();
         
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.font = '10px sans-serif';
         historyData.forEach((d, i) => {
           if (d.isNewSession && i > 0) {
@@ -193,23 +222,23 @@
           borderWidth: 2.5, 
           pointRadius: 0, 
           pointHoverRadius: 6, 
-          hitRadius: 20, // MASSIVE INVISIBLE HITBOX FOR EASY HOVERING
+          hitRadius: 20, 
           pointBackgroundColor: '#ffffff',
           pointBorderColor: '#ffffff',
           tension: 0, 
+          fill: fillGraphEnabled ? 'origin' : false, 
           segment: {
-            borderColor: ctx => getLineColor(historyData[ctx.p1DataIndex]?.tierName)
+            borderColor: ctx => getLineColor(historyData[ctx.p1DataIndex]?.tierName),
+            backgroundColor: ctx => {
+              const hexColor = getLineColor(historyData[ctx.p1DataIndex]?.tierName);
+              return hexColor + '33'; 
+            }
           }
         }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        // MAGNET TOOLTIPS: Snaps to the nearest game horizontally!
-        interaction: {
-          mode: 'nearest',
-          axis: 'x',
-          intersect: false
-        },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
         plugins: {
           legend: { display: false },
           tooltip: { 
@@ -223,40 +252,54 @@
             } 
           },
           zoom: {
-            pan: { 
-              enabled: true, 
-              mode: 'x', 
-              modifierKey: 'shift' // REQUIRES SHIFT TO DRAG
-            },
-            zoom: { 
-              wheel: { enabled: true }, 
-              pinch: { enabled: true }, 
-              mode: 'x', 
-              modifierKey: 'shift' // REQUIRES SHIFT TO SCROLL
-            }
+            pan: { enabled: true, mode: 'x', modifierKey: 'shift' },
+            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', modifierKey: 'shift' }
           }
         },
         scales: {
-          x: { 
-            display: false,
-            min: Math.max(0, points.length - 50) 
-          }, 
+          x: { display: false, min: Math.max(0, points.length - 50) }, 
           y: { 
             min: minVal, max: maxVal,
             grid: { display: false }, 
+            
+            afterBuildTicks: axis => {
+              // CHANGED: Delete any generic 100-LP tick if it gets within 60 LP of our GM/C thresholds
+              axis.ticks = axis.ticks.filter(t => {
+                if (gmThreshold && Math.abs(t.value - gmThreshold) < 60 && t.value !== gmThreshold) return false;
+                if (cThreshold && Math.abs(t.value - cThreshold) < 60 && t.value !== cThreshold) return false;
+                return true;
+              });
+
+              if (gmThreshold && !axis.ticks.find(t => t.value === gmThreshold)) axis.ticks.push({value: gmThreshold});
+              if (cThreshold && !axis.ticks.find(t => t.value === cThreshold)) axis.ticks.push({value: cThreshold});
+              axis.ticks.sort((a,b) => a.value - b.value);
+            },
+
             ticks: { 
               color: '#bbb', font: { weight: 'bold', size: 11 }, stepSize: 100,
               callback: function(value) {
-                if (value >= 3600) return 'C';
-                if (value >= 3200) return 'GM';
-                if (value >= 2800) return 'M';
+                if (cThreshold && value === cThreshold) return 'C';
+                if (gmThreshold && value === gmThreshold) return 'GM';
+                if (value === 2800) return 'M';
+
+                // Apex Tiers: Only show markers every 500 LP
+                if (value > 2800) {
+                  return (value - 2800) % 500 === 0 ? (value - 2800) + ' LP' : '';
+                }
                 
                 const tierIdx = Math.floor(value / 400);
-                const divIdx = Math.floor((value % 400) / 100);
-                const divNames = ['4', '3', '2', '1'];
-                return `${BAND_TIERS[tierIdx]?.name || '?'}${divNames[divIdx] || '4'}`;
+                if (tierIdx < 7) {
+                  const divIdx = Math.floor((value % 400) / 100);
+                  
+                  // Hide Divisions 2 and 3 (Indices 2 and 1)
+                  if (divIdx === 1 || divIdx === 2) return '';
+                  
+                  const divNames = ['4', '3', '2', '1'];
+                  return `${BAND_TIERS[tierIdx]?.name || '?'}${divNames[divIdx] || '4'}`;
+                }
+                return '';
               }
-            } 
+            }
           }
         }
       }
