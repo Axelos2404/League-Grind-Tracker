@@ -3,12 +3,17 @@ const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
 const riot = require('./riotClient');
 
-const TIER_VALUES = { IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600, EMERALD: 2000, DIAMOND: 2400, MASTER: 2800 };
+const TIER_VALUES = { 
+  IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600, 
+  EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2800, CHALLENGER: 2800 
+};
 const DIV_VALUES = { IV: 0, III: 100, II: 200, I: 300 };
 
 function getAbsoluteLp(entry) {
   if (!entry) return 0;
-  return (TIER_VALUES[entry.tier.toUpperCase()] || 0) + (DIV_VALUES[entry.rank.toUpperCase()] || 0) + entry.leaguePoints;
+  // Apex tiers don't have divisions, so we default the division value to 0 if it's missing or 'I'
+  const divValue = DIV_VALUES[entry.rank ? entry.rank.toUpperCase() : 'IV'] || 0;
+  return (TIER_VALUES[entry.tier.toUpperCase()] || 0) + divValue + entry.leaguePoints;
 }
 
 app.whenReady().then(() => {
@@ -110,6 +115,53 @@ app.whenReady().then(() => {
   });
 
   win.loadFile('index.html');
+});
+
+// --- GRAPH WINDOW LOGIC ---
+let graphWin = null;
+
+ipcMain.on('open-graph', () => {
+  if (graphWin) {
+    graphWin.focus(); 
+    return;
+  }
+  
+  graphWin = new BrowserWindow({
+    width: 750, height: 450,
+    backgroundColor: '#12141a',
+    frame: false, // Removes the standard Windows white title bar
+    autoHideMenuBar: true,
+    icon: path.join(__dirname, 'final-icon.png'),
+    webPreferences: { 
+      preload: path.join(__dirname, 'preload.js'), // Gives the graph window API access!
+      webSecurity: true 
+    }
+  });
+
+  graphWin.loadFile('graph.html');
+
+  graphWin.on('closed', () => {
+    graphWin = null;
+  });
+});
+
+// Window Control Listeners
+ipcMain.on('close-graph', () => {
+  if (graphWin) {
+    graphWin.close();
+    graphWin = null;
+  }
+});
+
+ipcMain.on('minimize-graph', () => {
+  if (graphWin) graphWin.minimize();
+});
+
+ipcMain.on('maximize-graph', () => {
+  if (graphWin) {
+    if (graphWin.isMaximized()) graphWin.restore();
+    else graphWin.maximize();
+  }
 });
 
 // CLEAN UP HOTKEYS WHEN THE APP CLOSES

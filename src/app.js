@@ -4,6 +4,9 @@ const savedOpacity = localStorage.getItem('bgOpacity') || '0.88';
 const shouldSaveSession = localStorage.getItem('saveSession') === 'true';
 const shouldAutoHideInit = localStorage.getItem('autoHide') === 'true';
 
+// --- LOAD LP HISTORY ---
+let lpHistory = JSON.parse(localStorage.getItem('lpHistory')) || [];
+
 // Apply saved settings to the UI instantly
 document.documentElement.style.setProperty('--accent-color', savedColor);
 document.documentElement.style.setProperty('--bg-opacity', savedOpacity);
@@ -112,6 +115,11 @@ async function updateTracker() {
 
   const data = res.data;
 
+  // Extract the Tier Name EARLY so we can save it to history for the graph colors!
+  const tierParts = data.tier.split(' ');
+  const tierName = tierParts[0] || 'GOLD';
+  const division = tierParts[1] || 'IV';
+
   // 1. INITIALIZE OR UPDATE SESSION
   if (!session.active) {
     session.active = true;
@@ -119,6 +127,18 @@ async function updateTracker() {
     session.startAbsoluteLp = data.absoluteLp;
     session.lastAbsoluteLp = data.absoluteLp;
     data.recentGames.forEach(g => session.seenMatchIds.add(g.matchId));
+
+    // RECORD SESSION START
+    if (lpHistory.length === 0 || lpHistory[lpHistory.length - 1].absoluteLp !== data.absoluteLp) {
+      lpHistory.push({ 
+        lp: data.absoluteLp, 
+        label: `${data.tier} ${data.lp}LP`, 
+        isNewSession: true, 
+        delta: 0,
+        tierName: tierName 
+      });
+      localStorage.setItem('lpHistory', JSON.stringify(lpHistory));
+    }
   } else {
     // Check for newly completed matches
     data.recentGames.forEach(game => {
@@ -129,26 +149,35 @@ async function updateTracker() {
       }
     });
 
-    // Calculate real LP gain from the last update
+    // RECORD LP CHANGES
     const lpDelta = data.absoluteLp - session.lastAbsoluteLp;
-    if (lpDelta > 0 && data.recentGames[0]?.win) {
-      session.estimatedWinGain = lpDelta; // Dynamically updates to exactly what you get per win!
+    if (lpDelta !== 0) {
+      if (lpDelta > 0 && data.recentGames[0]?.win) session.estimatedWinGain = lpDelta;
+      
+      lpHistory.push({ 
+        lp: data.absoluteLp, 
+        label: `${data.tier} ${data.lp}LP`, 
+        isNewSession: false, 
+        delta: lpDelta,
+        tierName: tierName
+      });
+      localStorage.setItem('lpHistory', JSON.stringify(lpHistory));
+      session.lastAbsoluteLp = data.absoluteLp;
     }
-    session.lastAbsoluteLp = data.absoluteLp;
   }
 
   // 2. DYNAMIC "WINS UNTIL" CALCULATION
   const currentLp = data.lp;
   const lpNeeded = Math.max(0, 100 - currentLp);
   const gamesLeft = Math.ceil(lpNeeded / session.estimatedWinGain) || 1;
-
-  const tierParts = data.tier.split(' ');
-  const tierName = tierParts[0] || 'GOLD';
-  const division = tierParts[1] || 'IV';
   
-  // If in division I, next stop is the next Tier. Otherwise, next Division.
-  const targetDisplay = division === 'I' ? 'NEXT TIER' : 'NEXT DIVISION';
-  document.getElementById('status').textContent = `${gamesLeft} ${gamesLeft === 1 ? 'WIN' : 'WINS'} TILL ${targetDisplay}`;
+  const apexTiers = ['MASTER', 'GRANDMASTER', 'CHALLENGER'];
+  if (apexTiers.includes(tierName.toUpperCase())) {
+    document.getElementById('status').textContent = `APEX TIER GRIND`;
+  } else {
+    const targetDisplay = division === 'I' ? 'NEXT TIER' : 'NEXT DIVISION';
+    document.getElementById('status').textContent = `${gamesLeft} ${gamesLeft === 1 ? 'WIN' : 'WINS'} TILL ${targetDisplay}`;
+  }
 
   // 3. RENDER TOP SECTION
   document.getElementById('tier').textContent = data.tier;
@@ -156,7 +185,6 @@ async function updateTracker() {
   document.getElementById('bar').style.width = `${data.lp}%`;
   document.getElementById('percentLabel').textContent = `${Math.round(data.lp)}%`;
 
-  // Dynamically set Left/Right progress labels based on current Tier
   const nextTierMap = { BRONZE: 'SILVER', SILVER: 'GOLD', GOLD: 'PLATINUM', PLATINUM: 'DIAMOND', DIAMOND: 'MASTER' };
   document.getElementById('leftLabel').textContent = `${tierName} IV`;
   document.getElementById('rightLabel').textContent = `${nextTierMap[tierName.toUpperCase()] || tierName} IV`;
@@ -232,15 +260,27 @@ async function waitForRiotServer(attempts = 0) {
   setTimeout(() => waitForRiotServer(attempts + 1), 10000);
 }
 
+// Open Graph Event Listener
+document.getElementById('graphBtn').addEventListener('click', () => {
+  window.api.openGraph();
+});
+
 // THE ZERO RATE-LIMIT GAMEFLOW TRACKER
 let lastPhase = "None";
 
 setInterval(async () => {
   try {
     const currentPhase = await window.api.getGameflow();
-    
-    // DYNAMIC CHECK: Reads your live settings every 5 seconds!
     const isAutoHideEnabled = localStorage.getItem('autoHide') !== 'false'; 
+    const graphBtn = document.getElementById('graphBtn');
+    
+    // GRAPH WINDOW & BUTTON LOGIC
+    if (currentPhase === "InProgress") {
+      graphBtn.style.display = 'none'; // Hide button in-game
+      window.api.closeGraph();         // Force close the 2nd window
+    } else {
+      graphBtn.style.display = 'block'; // Show button out of game
+    }
     
     // AUTO-HIDE LOGIC
     if (isAutoHideEnabled && lastPhase !== currentPhase) {

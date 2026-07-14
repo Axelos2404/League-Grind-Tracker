@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LP Progress History</title>
+  <style>
+    body {
+      background-color: #12141a; color: #ffffff;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      margin: 0; padding: 45px 20px 20px 20px;
+      display: flex; flex-direction: column;
+      height: 100vh; box-sizing: border-box;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .titlebar {
+      display: flex; justify-content: space-between; align-items: center;
+      height: 30px; background-color: #0b0c10;
+      -webkit-app-region: drag; position: fixed;
+      top: 0; left: 0; right: 0; z-index: 1000;
+    }
+    .titlebar-left { display: flex; align-items: center; padding-left: 10px; gap: 8px; }
+    .titlebar-left img { width: 16px; height: 16px; }
+    .titlebar-title { font-size: 11px; font-weight: 600; color: #ccc; letter-spacing: 0.5px; }
+    
+    .titlebar-right { display: flex; height: 100%; -webkit-app-region: no-drag; }
+    .win-btn { 
+      width: 40px; height: 100%; background: transparent; border: none; color: #aaa; 
+      cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s;
+    }
+    .win-btn:hover { background-color: rgba(255,255,255,0.1); color: #fff; }
+    .win-btn.close-btn:hover { background-color: #ff4747; color: #fff; }
+    .win-btn svg { width: 10px; height: 10px; }
+
+    .header { margin-bottom: 15px; }
+    .title { font-weight: 800; font-size: 18px; letter-spacing: 1px; }
+    .subtitle { font-size: 12px; color: #aaa; }
+    
+    /* UPDATED: Dynamic cursors only apply when Shift is pressed */
+    .chart-container { flex-grow: 1; position: relative; }
+    .chart-container.shift-pressed { cursor: grab; }
+    .chart-container.shift-pressed:active { cursor: grabbing; } 
+  </style>
+</head>
+<body>
+
+  <div class="titlebar">
+    <div class="titlebar-left">
+      <img src="GrindTracker.png" alt="Logo">
+      <span class="titlebar-title">LEAGUE GRIND TRACKER</span>
+    </div>
+    <div class="titlebar-right">
+      <button id="minBtn" class="win-btn"><svg viewBox="0 0 10 10"><path d="M1,5 L9,5" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <button id="maxBtn" class="win-btn"><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <button id="closeBtn" class="win-btn close-btn"><svg viewBox="0 0 10 10"><path d="M1,1 L9,9 M9,1 L1,9" stroke="currentColor" stroke-width="1.5"/></svg></button>
+    </div>
+  </div>
+
+  <div class="header">
+    <div class="title">CAREER LP TRACKING</div>
+    <div id="subText" class="subtitle">Loading...</div>
+  </div>
+
+  <div class="chart-container" id="chartWrapper">
+    <canvas id="lpChart"></canvas>
+  </div>
+
+  <!-- SCRIPTS MOVED TO BOTTOM FOR GUARANTEED UI RENDERING -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+  <script>
+    document.getElementById('minBtn').addEventListener('click', () => window.api.minimizeGraph());
+    document.getElementById('maxBtn').addEventListener('click', () => window.api.maximizeGraph());
+    document.getElementById('closeBtn').addEventListener('click', () => window.api.closeGraph());
+
+    // --- DYNAMIC SHIFT CURSOR ---
+    const wrapper = document.getElementById('chartWrapper');
+    window.addEventListener('keydown', (e) => { if (e.key === 'Shift') wrapper.classList.add('shift-pressed'); });
+    window.addEventListener('keyup', (e) => { if (e.key === 'Shift') wrapper.classList.remove('shift-pressed'); });
+
+    const historyData = JSON.parse(localStorage.getItem('lpHistory')) || [];
+    document.getElementById('subText').textContent = `Tracking last ${historyData.length} LP updates (Hold SHIFT to drag and zoom)`;
+
+    const BAND_TIERS = [
+      { name: 'I',  min: 0,    max: 400,  bg: 'rgba(140, 140, 140, 0.08)' },
+      { name: 'B',  min: 400,  max: 800,  bg: 'rgba(168, 104, 66, 0.10)' },
+      { name: 'S',  min: 800,  max: 1200, bg: 'rgba(160, 180, 184, 0.08)' },
+      { name: 'G',  min: 1200, max: 1600, bg: 'rgba(255, 209, 102, 0.10)' },
+      { name: 'P',  min: 1600, max: 2000, bg: 'rgba(72, 201, 176, 0.10)' },
+      { name: 'E',  min: 2000, max: 2400, bg: 'rgba(75, 191, 115, 0.10)' },
+      { name: 'D',  min: 2400, max: 2800, bg: 'rgba(138, 115, 255, 0.10)' },
+      { name: 'M',  min: 2800, max: 3200, bg: 'rgba(200, 112, 216, 0.10)' }, 
+      { name: 'GM', min: 3200, max: 3600, bg: 'rgba(233, 80, 80, 0.10)' },   
+      { name: 'C',  min: 3600, max: 7000, bg: 'rgba(80, 233, 216, 0.10)' }   
+    ];
+
+    const TIER_COLORS = {
+      'IRON': '#8c8c8c', 'BRONZE': '#a86842', 'SILVER': '#a0b4b8',
+      'GOLD': '#ffd166', 'PLATINUM': '#48c9b0', 'EMERALD': '#4bbf73',
+      'DIAMOND': '#8a73ff', 'MASTER': '#c870d8', 'GRANDMASTER': '#e95050',
+      'CHALLENGER': '#50e9d8'
+    };
+
+    function getLineColor(tierStr) {
+      return TIER_COLORS[tierStr?.toUpperCase()] || '#ffffff';
+    }
+
+    let minVal = 1200, maxVal = 1600; 
+    if (historyData.length > 0) {
+      const lps = historyData.map(d => d.lp);
+      minVal = Math.floor(Math.min(...lps) / 400) * 400;
+      maxVal = Math.ceil((Math.max(...lps) + 1) / 400) * 400;
+      if (maxVal - minVal < 400) maxVal = minVal + 400;
+    }
+
+    const tierBackgroundPlugin = {
+      id: 'tierBackgrounds',
+      beforeDraw(chart) {
+        const { ctx, chartArea, scales: { y } } = chart;
+        if (!chartArea) return;
+        ctx.save();
+        BAND_TIERS.forEach(tier => {
+          if (tier.max > y.min && tier.min < y.max) {
+            const topY = y.getPixelForValue(Math.min(tier.max, y.max));
+            const bottomY = y.getPixelForValue(Math.max(tier.min, y.min));
+            
+            ctx.fillStyle = tier.bg;
+            ctx.fillRect(chartArea.left, topY, chartArea.right - chartArea.left, bottomY - topY);
+            
+            if (tier.min > y.min && tier.min < y.max) {
+              ctx.beginPath(); 
+              ctx.setLineDash([4, 4]); 
+              ctx.moveTo(chartArea.left, bottomY);
+              ctx.lineTo(chartArea.right, bottomY); 
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+              ctx.lineWidth = 1; 
+              ctx.stroke();
+            }
+          }
+        });
+        ctx.restore();
+      }
+    };
+
+    const sessionLinesPlugin = {
+      id: 'sessionLines',
+      beforeDraw(chart) {
+        const { ctx, chartArea, scales: { x } } = chart;
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([5, 5]); 
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        
+        historyData.forEach((d, i) => {
+          if (d.isNewSession && i > 0) {
+            const xPos = x.getPixelForValue(i);
+            if (xPos >= chartArea.left && xPos <= chartArea.right) {
+              ctx.moveTo(xPos, chartArea.top);
+              ctx.lineTo(xPos, chartArea.bottom);
+            }
+          }
+        });
+        ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.font = '10px sans-serif';
+        historyData.forEach((d, i) => {
+          if (d.isNewSession && i > 0) {
+            const xPos = x.getPixelForValue(i);
+            if (xPos >= chartArea.left && xPos <= chartArea.right) {
+               ctx.fillText('Session', xPos + 4, chartArea.bottom - 4);
+            }
+          }
+        });
+        ctx.restore();
+      }
+    };
+
+    const labels = historyData.map((d, index) => d.isNewSession ? `Session Start` : `Game ${index}`);
+    const points = historyData.map(d => d.lp);
+
+    const ctx = document.getElementById('lpChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      plugins: [tierBackgroundPlugin, sessionLinesPlugin], 
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Absolute LP',
+          data: points,
+          borderWidth: 2.5, 
+          pointRadius: 0, 
+          pointHoverRadius: 6, 
+          hitRadius: 20, // MASSIVE INVISIBLE HITBOX FOR EASY HOVERING
+          pointBackgroundColor: '#ffffff',
+          pointBorderColor: '#ffffff',
+          tension: 0, 
+          segment: {
+            borderColor: ctx => getLineColor(historyData[ctx.p1DataIndex]?.tierName)
+          }
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        // MAGNET TOOLTIPS: Snaps to the nearest game horizontally!
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { 
+            callbacks: { 
+              label: context => {
+                const d = historyData[context.dataIndex];
+                const sign = d.delta > 0 ? '+' : '';
+                const deltaStr = d.delta ? ` (${sign}${d.delta} LP)` : '';
+                return `${d.label}${deltaStr}`; 
+              } 
+            } 
+          },
+          zoom: {
+            pan: { 
+              enabled: true, 
+              mode: 'x', 
+              modifierKey: 'shift' // REQUIRES SHIFT TO DRAG
+            },
+            zoom: { 
+              wheel: { enabled: true }, 
+              pinch: { enabled: true }, 
+              mode: 'x', 
+              modifierKey: 'shift' // REQUIRES SHIFT TO SCROLL
+            }
+          }
+        },
+        scales: {
+          x: { 
+            display: false,
+            min: Math.max(0, points.length - 50) 
+          }, 
+          y: { 
+            min: minVal, max: maxVal,
+            grid: { display: false }, 
+            ticks: { 
+              color: '#bbb', font: { weight: 'bold', size: 11 }, stepSize: 100,
+              callback: function(value) {
+                if (value >= 3600) return 'C';
+                if (value >= 3200) return 'GM';
+                if (value >= 2800) return 'M';
+                
+                const tierIdx = Math.floor(value / 400);
+                const divIdx = Math.floor((value % 400) / 100);
+                const divNames = ['4', '3', '2', '1'];
+                return `${BAND_TIERS[tierIdx]?.name || '?'}${divNames[divIdx] || '4'}`;
+              }
+            } 
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
