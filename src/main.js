@@ -1,7 +1,23 @@
 require('dotenv').config();
 const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const riot = require('./riotClient');
+
+const customPathFile = path.join(app.getPath('userData'), 'custom-league-path.txt');
+
+if (fs.existsSync(customPathFile)) {
+  riot.setCustomPath(fs.readFileSync(customPathFile, 'utf8').trim());
+}
+
+ipcMain.handle('get-custom-path', () => {
+  return fs.existsSync(customPathFile) ? fs.readFileSync(customPathFile, 'utf8').trim() : '';
+});
+
+ipcMain.on('set-custom-path', (event, customPath) => {
+  fs.writeFileSync(customPathFile, customPath);
+  riot.setCustomPath(customPath);
+});
 
 const TIER_VALUES = { 
   IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600, 
@@ -12,19 +28,17 @@ const DIV_VALUES = { IV: 0, III: 100, II: 200, I: 300 };
 function getAbsoluteLp(entry) {
   if (!entry) return 0;
   const tier = entry.tier.toUpperCase();
-  
-  // Apex tiers ignore divisions and just stack infinite LP on top of the 2800 baseline
   if (['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier)) {
     return 2800 + entry.leaguePoints;
   }
-  
   const divValue = DIV_VALUES[entry.rank ? entry.rank.toUpperCase() : 'IV'] || 0;
   return (TIER_VALUES[tier] || 0) + divValue + entry.leaguePoints;
 }
 
 app.whenReady().then(() => {
   const win = new BrowserWindow({
-    width: 280, height: 460, 
+    // INCREASED WIDTH & HEIGHT TO PREVENT OS SCALING CLIPPING
+    width: 320, height: 500, 
     transparent: true, frame: false, resizable: false, alwaysOnTop: true,
     icon: path.join(__dirname, 'final-icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js') }
@@ -33,18 +47,13 @@ app.whenReady().then(() => {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setIgnoreMouseEvents(true);
 
-  // STATE VARIABLES
   let isLocked = true;
   let isHidden = false;
 
-  // DRAG/INTERACT HOTKEY (Ctrl + Shift + L)
   globalShortcut.register('CommandOrControl+Shift+L', () => {
-    if (isHidden) return; // THE SHIELD: Do absolutely nothing if the widget is invisible!
-
+    if (isHidden) return;
     isLocked = !isLocked;
     win.setIgnoreMouseEvents(isLocked);
-    
-    // VISUAL FEEDBACK INJECTION
     win.webContents.executeJavaScript(`
       {
         let card = document.querySelector('.tracker-card');
@@ -62,17 +71,12 @@ app.whenReady().then(() => {
     `).catch(err => console.log('Visual update skipped:', err.message));
   });
 
-  // MANUAL HIDE/SHOW HOTKEY (Ctrl + Shift + H)
   globalShortcut.register('CommandOrControl+Shift+H', () => {
     isHidden = !isHidden;
-
-    // FORCE LOCK: If the app is hiding, make sure it locks itself!
     if (isHidden && !isLocked) {
       isLocked = true;
       win.setIgnoreMouseEvents(true);
     }
-
-    // UNIFIED COMMAND: Wrapped in {} to prevent redeclaration errors
     win.webContents.executeJavaScript(`
       {
         document.body.style.transition = 'opacity 0.4s ease-in-out';
@@ -85,7 +89,6 @@ app.whenReady().then(() => {
     `).catch(err => console.log('Hide toggle skipped:', err.message));
   });
 
-  // IPC LISTENER FOR AUTO-HIDE
   ipcMain.on('set-window-visibility', (event, shouldShow) => {
     if (shouldShow && isHidden) {
       isHidden = false;
@@ -101,12 +104,10 @@ app.whenReady().then(() => {
       `).catch(err => console.log(err.message));
     } else if (!shouldShow && !isHidden) {
       isHidden = true;
-      
       if (!isLocked) {
         isLocked = true;
         win.setIgnoreMouseEvents(true);
       }
-
       win.webContents.executeJavaScript(`
         {
           document.body.style.transition = 'opacity 0.4s ease-in-out';
@@ -123,57 +124,25 @@ app.whenReady().then(() => {
   win.loadFile('index.html');
 });
 
-// --- GRAPH WINDOW LOGIC ---
 let graphWin = null;
 
 ipcMain.on('open-graph', () => {
-  if (graphWin) {
-    graphWin.focus(); 
-    return;
-  }
-  
+  if (graphWin) { graphWin.focus(); return; }
   graphWin = new BrowserWindow({
     width: 750, height: 450,
-    backgroundColor: '#12141a',
-    frame: false, // Removes the standard Windows white title bar
-    autoHideMenuBar: true,
+    backgroundColor: '#12141a', frame: false, autoHideMenuBar: true,
     icon: path.join(__dirname, 'final-icon.png'),
-    webPreferences: { 
-      preload: path.join(__dirname, 'preload.js'), // Gives the graph window API access!
-      webSecurity: true 
-    }
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), webSecurity: true }
   });
-
   graphWin.loadFile('graph.html');
-
-  graphWin.on('closed', () => {
-    graphWin = null;
-  });
+  graphWin.on('closed', () => { graphWin = null; });
 });
 
-// Window Control Listeners
-ipcMain.on('close-graph', () => {
-  if (graphWin) {
-    graphWin.close();
-    graphWin = null;
-  }
-});
+ipcMain.on('close-graph', () => { if (graphWin) { graphWin.close(); graphWin = null; }});
+ipcMain.on('minimize-graph', () => { if (graphWin) graphWin.minimize(); });
+ipcMain.on('maximize-graph', () => { if (graphWin) { if (graphWin.isMaximized()) graphWin.restore(); else graphWin.maximize(); }});
 
-ipcMain.on('minimize-graph', () => {
-  if (graphWin) graphWin.minimize();
-});
-
-ipcMain.on('maximize-graph', () => {
-  if (graphWin) {
-    if (graphWin.isMaximized()) graphWin.restore();
-    else graphWin.maximize();
-  }
-});
-
-// CLEAN UP HOTKEYS WHEN THE APP CLOSES
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
-});
+app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 
 ipcMain.handle('auto-detect', async () => {
   try {
@@ -189,6 +158,7 @@ ipcMain.handle('auto-detect', async () => {
       success: true,
       data: {
         name: localPlayer.gameName || localPlayer.displayName,
+        puuid: stats.realPuuid,
         tier: stats.soloQ ? `${stats.soloQ.tier} ${stats.soloQ.rank}` : "UNRANKED",
         lp: stats.soloQ ? stats.soloQ.leaguePoints : 0,
         absoluteLp: currentAbsoluteLp,
@@ -200,7 +170,4 @@ ipcMain.handle('auto-detect', async () => {
   }
 });
 
-// Pass the gameflow check to the frontend
-ipcMain.handle('get-gameflow', async () => {
-  return await riot.getGameflowPhase();
-});
+ipcMain.handle('get-gameflow', async () => { return await riot.getGameflowPhase(); });

@@ -6,5 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   openGraph: () => ipcRenderer.send('open-graph'),
   closeGraph: () => ipcRenderer.send('close-graph'),
   minimizeGraph: () => ipcRenderer.send('minimize-graph'),
-  maximizeGraph: () => ipcRenderer.send('maximize-graph')
+  maximizeGraph: () => ipcRenderer.send('maximize-graph'),
+  getCustomPath: () => ipcRenderer.invoke('get-custom-path'),
+  setCustomPath: (path) => ipcRenderer.send('set-custom-path', path)
 });

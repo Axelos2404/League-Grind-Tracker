@@ -76,12 +76,14 @@
     window.addEventListener('keydown', (e) => { if (e.key === 'Shift') wrapper.classList.add('shift-pressed'); });
     window.addEventListener('keyup', (e) => { if (e.key === 'Shift') wrapper.classList.remove('shift-pressed'); });
 
-    const historyData = JSON.parse(localStorage.getItem('lpHistory')) || [];
+    // --- NAMESPACED DATA LOADING ---
+    const activePuuid = localStorage.getItem('activeAccountPuuid');
+    const historyData = activePuuid ? (JSON.parse(localStorage.getItem(`lpHistory_${activePuuid}`)) || []) : [];
+    
     const fillGraphEnabled = localStorage.getItem('fillGraph') === 'true';
 
     document.getElementById('subText').textContent = `Tracking last ${historyData.length} LP updates (Hold SHIFT to drag and zoom)`;
 
-    // --- 1. FIND TRUE ORGANIC PROMOTION THRESHOLDS ---
     let gmThreshold = null;
     let cThreshold = null;
 
@@ -90,7 +92,6 @@
       if (!cThreshold && historyData[i].tierName === 'CHALLENGER') cThreshold = historyData[i].lp;
     }
 
-    // --- 2. BUILD BANDS DYNAMICALLY ---
     const BAND_TIERS = [
       { name: 'I',  min: 0,    max: 400,  bg: 'rgba(140, 140, 140, 0.08)' },
       { name: 'B',  min: 400,  max: 800,  bg: 'rgba(168, 104, 66, 0.10)' },
@@ -130,9 +131,7 @@
       'CHALLENGER': '#50e9d8'
     };
 
-    function getLineColor(tierStr) {
-      return TIER_COLORS[tierStr?.toUpperCase()] || '#ffffff';
-    }
+    function getLineColor(tierStr) { return TIER_COLORS[tierStr?.toUpperCase()] || '#ffffff'; }
 
     let minVal = 1200, maxVal = 1600; 
     if (historyData.length > 0) {
@@ -173,13 +172,12 @@
 
     const sessionLinesPlugin = {
       id: 'sessionLines',
-      // CHANGED: Render AFTER datasets so lines paint over the shaded fill!
       afterDatasetsDraw(chart) {
         const { ctx, chartArea, scales: { x } } = chart;
         ctx.save();
         ctx.beginPath();
         ctx.setLineDash([5, 5]); 
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; // Slightly brighter to pop over fill
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; 
         ctx.lineWidth = 1;
         
         historyData.forEach((d, i) => {
@@ -263,7 +261,6 @@
             grid: { display: false }, 
             
             afterBuildTicks: axis => {
-              // CHANGED: Delete any generic 100-LP tick if it gets within 60 LP of our GM/C thresholds
               axis.ticks = axis.ticks.filter(t => {
                 if (gmThreshold && Math.abs(t.value - gmThreshold) < 60 && t.value !== gmThreshold) return false;
                 if (cThreshold && Math.abs(t.value - cThreshold) < 60 && t.value !== cThreshold) return false;
@@ -282,7 +279,6 @@
                 if (gmThreshold && value === gmThreshold) return 'GM';
                 if (value === 2800) return 'M';
 
-                // Apex Tiers: Only show markers every 500 LP
                 if (value > 2800) {
                   return (value - 2800) % 500 === 0 ? (value - 2800) + ' LP' : '';
                 }
@@ -290,10 +286,7 @@
                 const tierIdx = Math.floor(value / 400);
                 if (tierIdx < 7) {
                   const divIdx = Math.floor((value % 400) / 100);
-                  
-                  // Hide Divisions 2 and 3 (Indices 2 and 1)
                   if (divIdx === 1 || divIdx === 2) return '';
-                  
                   const divNames = ['4', '3', '2', '1'];
                   return `${BAND_TIERS[tierIdx]?.name || '?'}${divNames[divIdx] || '4'}`;
                 }

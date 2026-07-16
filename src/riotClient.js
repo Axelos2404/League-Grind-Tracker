@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
+let customLockfilePath = '';
+
+function setCustomPath(p) {
+  customLockfilePath = p;
+}
+
 const validPlatforms = ['euw1', 'eun1', 'na1', 'kr', 'br1', 'la1', 'la2', 'oc1', 'ru', 'tr1', 'jp1', 'ph2', 'sg2', 'th2', 'tw2', 'vn2'];
 const platformToRegion = (p) => ['euw1','eun1','ru','tr1'].includes(p) ? 'europe' : ['na1','br1','la1','la2','oc1'].includes(p) ? 'americas' : 'asia';
 
@@ -34,6 +40,12 @@ function getLocalClient() {
     'D:\\Riot Games\\League of Legends\\lockfile',
     process.env.PROGRAMFILES + '\\Riot Games\\League of Legends\\lockfile'
   ];
+  
+  // Inject the X: Drive (or whatever they saved) to the very top of the search list!
+  if (customLockfilePath) {
+    paths.unshift(path.join(customLockfilePath, 'lockfile'));
+  }
+
   for (const p of paths) {
     if (fs.existsSync(p)) {
       const [name, pid, port, password, protocol] = fs.readFileSync(p, 'utf8').trim().split(':');
@@ -49,14 +61,13 @@ async function detectLocalPlayer() {
   return requestJson(`https://127.0.0.1:${lockfile.port}/lol-summoner/v1/current-summoner`, auth, true);
 }
 
-// Zero-Rate-Limit Local Game State Checker
 async function getGameflowPhase() {
   try {
     const lockfile = getLocalClient();
     const auth = { 'Authorization': `Basic ${Buffer.from(`riot:${lockfile.password}`).toString('base64')}` };
     return await requestJson(`https://127.0.0.1:${lockfile.port}/lol-gameflow/v1/gameflow-phase`, auth, true);
   } catch(e) {
-    return "None"; // If the game is closed, return None
+    return "None"; 
   }
 }
 
@@ -82,4 +93,4 @@ async function fetchPlayerStats(localPlayer, preferredPlatform = 'euw1') {
   return { soloQ, matches, realPuuid };
 }
 
-module.exports = { detectLocalPlayer, fetchPlayerStats, getGameflowPhase };
+module.exports = { detectLocalPlayer, fetchPlayerStats, getGameflowPhase, setCustomPath };

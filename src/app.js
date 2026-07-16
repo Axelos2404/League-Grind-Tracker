@@ -5,47 +5,28 @@ const shouldSaveSession = localStorage.getItem('saveSession') === 'true';
 const shouldAutoHideInit = localStorage.getItem('autoHide') === 'true';
 const shouldFillGraph = localStorage.getItem('fillGraph') === 'true';
 
-// --- LOAD LP HISTORY ---
-let lpHistory = JSON.parse(localStorage.getItem('lpHistory')) || [];
-
-// Apply saved settings to the UI instantly
 document.documentElement.style.setProperty('--accent-color', savedColor);
 document.documentElement.style.setProperty('--bg-opacity', savedOpacity);
 
-// Setup the settings menu inputs
 document.getElementById('colorPicker').value = savedColor;
 document.getElementById('opacitySlider').value = savedOpacity;
 document.getElementById('saveSessionToggle').checked = shouldSaveSession;
 document.getElementById('autoHideToggle').checked = shouldAutoHideInit;
 document.getElementById('fillGraphToggle').checked = shouldFillGraph;
 
-// --- SESSION STATE ---
+// Initialize custom path from backend
+window.api.getCustomPath().then(p => document.getElementById('customPathInput').value = p);
+
+// --- MULTI-ACCOUNT STATE ---
+let activePuuid = null;
+let lpHistory = [];
 let session = {
   active: false, startTime: null, startAbsoluteLp: 0, lastAbsoluteLp: 0,
   wins: 0, losses: 0, seenMatchIds: new Set(), estimatedWinGain: 20
 };
 
-// --- RESTORE SAVED SESSION (IF ENABLED) ---
-if (shouldSaveSession) {
-  const savedSessionData = localStorage.getItem('leagueSession');
-  if (savedSessionData) {
-    try {
-      const parsed = JSON.parse(savedSessionData);
-      session.active = parsed.active;
-      // We store elapsed time instead of a hard timestamp so the timer doesn't count time while the app was closed!
-      session.startTime = Date.now() - parsed.elapsedMs;
-      session.startAbsoluteLp = parsed.startAbsoluteLp;
-      session.lastAbsoluteLp = parsed.lastAbsoluteLp;
-      session.wins = parsed.wins;
-      session.losses = parsed.losses;
-      session.seenMatchIds = new Set(parsed.seenMatchIds); // Sets don't stringify well, so we convert back and forth
-      session.estimatedWinGain = parsed.estimatedWinGain;
-    } catch(e) { console.error("Could not parse saved session"); }
-  }
-}
-
-// Helper to save the current session state
 function saveSessionToStorage() {
+  if (!activePuuid) return;
   if (localStorage.getItem('saveSession') === 'true' && session.active) {
     const dataToSave = {
       active: session.active,
@@ -57,20 +38,15 @@ function saveSessionToStorage() {
       seenMatchIds: Array.from(session.seenMatchIds),
       estimatedWinGain: session.estimatedWinGain
     };
-    localStorage.setItem('leagueSession', JSON.stringify(dataToSave));
+    localStorage.setItem(`session_${activePuuid}`, JSON.stringify(dataToSave));
   } else {
-    localStorage.removeItem('leagueSession');
+    localStorage.removeItem(`session_${activePuuid}`);
   }
 }
 
 // --- UI EVENT LISTENERS ---
-document.getElementById('settingsBtn').addEventListener('click', () => {
-  document.getElementById('settingsOverlay').style.display = 'flex';
-});
-
-document.getElementById('closeSettingsBtn').addEventListener('click', () => {
-  document.getElementById('settingsOverlay').style.display = 'none';
-});
+document.getElementById('settingsBtn').addEventListener('click', () => { document.getElementById('settingsOverlay').style.display = 'flex'; });
+document.getElementById('closeSettingsBtn').addEventListener('click', () => { document.getElementById('settingsOverlay').style.display = 'none'; });
 
 document.getElementById('colorPicker').addEventListener('input', (e) => {
   document.documentElement.style.setProperty('--accent-color', e.target.value);
@@ -84,15 +60,23 @@ document.getElementById('opacitySlider').addEventListener('input', (e) => {
 
 document.getElementById('saveSessionToggle').addEventListener('change', (e) => {
   localStorage.setItem('saveSession', e.target.checked);
-  saveSessionToStorage(); // Save immediately or wipe depending on the box
+  saveSessionToStorage(); 
 });
 
-document.getElementById('autoHideToggle').addEventListener('change', (e) => {
-  localStorage.setItem('autoHide', e.target.checked);
+document.getElementById('autoHideToggle').addEventListener('change', (e) => localStorage.setItem('autoHide', e.target.checked));
+document.getElementById('fillGraphToggle').addEventListener('change', (e) => localStorage.setItem('fillGraph', e.target.checked));
+
+document.getElementById('customPathInput').addEventListener('change', (e) => {
+  window.api.setCustomPath(e.target.value.trim());
 });
 
-document.getElementById('fillGraphToggle').addEventListener('change', (e) => {
-  localStorage.setItem('fillGraph', e.target.checked);
+// NEW: Safely deletes the graph and session data for the CURRENT account only
+document.getElementById('resetDataBtn').addEventListener('click', () => {
+  if (activePuuid && confirm("Are you sure you want to permanently wipe the graph and session history for THIS account?")) {
+    localStorage.removeItem(`lpHistory_${activePuuid}`);
+    localStorage.removeItem(`session_${activePuuid}`);
+    location.reload(); 
+  }
 });
 
 // --- GRIND TIMER LOGIC ---
@@ -107,7 +91,7 @@ function formatTime(ms) {
 setInterval(() => {
   if (session.active) {
     document.getElementById('grindTimer').textContent = formatTime(Date.now() - session.startTime);
-    saveSessionToStorage(); // Continually save progress so nothing is lost if you Alt+F4
+    saveSessionToStorage(); 
   }
 }, 1000);
 
@@ -121,12 +105,38 @@ async function updateTracker() {
 
   const data = res.data;
 
-  // Extract the Tier Name EARLY so we can save it to history for the graph colors!
+  // --- THE MULTI-ACCOUNT NAMESPACE SWITCHER ---
+  if (activePuuid !== data.puuid) {
+    activePuuid = data.puuid;
+    localStorage.setItem('activeAccountPuuid', activePuuid); // Let graph.html know who is playing!
+    
+    // Pull this specific account's history folder
+    lpHistory = JSON.parse(localStorage.getItem(`lpHistory_${activePuuid}`)) || [];
+    
+    // Wipe current session and pull this specific account's session folder
+    session = { active: false, startTime: null, startAbsoluteLp: 0, lastAbsoluteLp: 0, wins: 0, losses: 0, seenMatchIds: new Set(), estimatedWinGain: 20 };
+    if (localStorage.getItem('saveSession') === 'true') {
+      const savedSessionData = localStorage.getItem(`session_${activePuuid}`);
+      if (savedSessionData) {
+        try {
+          const parsed = JSON.parse(savedSessionData);
+          session.active = parsed.active;
+          session.startTime = Date.now() - parsed.elapsedMs;
+          session.startAbsoluteLp = parsed.startAbsoluteLp;
+          session.lastAbsoluteLp = parsed.lastAbsoluteLp;
+          session.wins = parsed.wins;
+          session.losses = parsed.losses;
+          session.seenMatchIds = new Set(parsed.seenMatchIds); 
+          session.estimatedWinGain = parsed.estimatedWinGain;
+        } catch(e) {}
+      }
+    }
+  }
+
   const tierParts = data.tier.split(' ');
   const tierName = tierParts[0] || 'GOLD';
   const division = tierParts[1] || 'IV';
 
-  // 1. INITIALIZE OR UPDATE SESSION
   if (!session.active) {
     session.active = true;
     session.startTime = Date.now();
@@ -134,19 +144,11 @@ async function updateTracker() {
     session.lastAbsoluteLp = data.absoluteLp;
     data.recentGames.forEach(g => session.seenMatchIds.add(g.matchId));
 
-    // RECORD SESSION START
     if (lpHistory.length === 0 || lpHistory[lpHistory.length - 1].absoluteLp !== data.absoluteLp) {
-      lpHistory.push({ 
-        lp: data.absoluteLp, 
-        label: `${data.tier} ${data.lp}LP`, 
-        isNewSession: true, 
-        delta: 0,
-        tierName: tierName 
-      });
-      localStorage.setItem('lpHistory', JSON.stringify(lpHistory));
+      lpHistory.push({ lp: data.absoluteLp, label: `${data.tier} ${data.lp}LP`, isNewSession: true, delta: 0, tierName: tierName });
+      localStorage.setItem(`lpHistory_${activePuuid}`, JSON.stringify(lpHistory));
     }
   } else {
-    // Check for newly completed matches
     data.recentGames.forEach(game => {
       if (!session.seenMatchIds.has(game.matchId)) {
         session.seenMatchIds.add(game.matchId);
@@ -155,24 +157,16 @@ async function updateTracker() {
       }
     });
 
-    // RECORD LP CHANGES
     const lpDelta = data.absoluteLp - session.lastAbsoluteLp;
     if (lpDelta !== 0) {
       if (lpDelta > 0 && data.recentGames[0]?.win) session.estimatedWinGain = lpDelta;
       
-      lpHistory.push({ 
-        lp: data.absoluteLp, 
-        label: `${data.tier} ${data.lp}LP`, 
-        isNewSession: false, 
-        delta: lpDelta,
-        tierName: tierName
-      });
-      localStorage.setItem('lpHistory', JSON.stringify(lpHistory));
+      lpHistory.push({ lp: data.absoluteLp, label: `${data.tier} ${data.lp}LP`, isNewSession: false, delta: lpDelta, tierName: tierName });
+      localStorage.setItem(`lpHistory_${activePuuid}`, JSON.stringify(lpHistory));
       session.lastAbsoluteLp = data.absoluteLp;
     }
   }
 
-  // 2. DYNAMIC "WINS UNTIL" CALCULATION
   const currentLp = data.lp;
   const lpNeeded = Math.max(0, 100 - currentLp);
   const gamesLeft = Math.ceil(lpNeeded / session.estimatedWinGain) || 1;
@@ -185,7 +179,6 @@ async function updateTracker() {
     document.getElementById('status').textContent = `${gamesLeft} ${gamesLeft === 1 ? 'WIN' : 'WINS'} TILL ${targetDisplay}`;
   }
 
-  // 3. RENDER TOP SECTION
   document.getElementById('tier').textContent = data.tier;
   document.getElementById('lp').textContent = `${data.lp} LP`;
   document.getElementById('bar').style.width = `${data.lp}%`;
@@ -195,7 +188,6 @@ async function updateTracker() {
   document.getElementById('leftLabel').textContent = `${tierName} IV`;
   document.getElementById('rightLabel').textContent = `${nextTierMap[tierName.toUpperCase()] || tierName} IV`;
 
-  // 4. RENDER MATCH HISTORY
   const gamesRow = document.getElementById('gamesRow');
   gamesRow.innerHTML = '';
   data.recentGames.forEach(game => {
@@ -209,7 +201,6 @@ async function updateTracker() {
     gamesRow.appendChild(tile);
   });
 
-  // 5. RENDER SESSION STATS
   const totalGames = session.wins + session.losses;
   const winRate = totalGames > 0 ? Math.round((session.wins / totalGames) * 100) : 0;
   const netLp = data.absoluteLp - session.startAbsoluteLp;
@@ -224,24 +215,17 @@ async function updateTracker() {
   document.getElementById('gamesCount').textContent = totalGames;
 }
 
-let ddragonVersion = '14.4.1'; // Fallback
-
-// Fetch the absolute newest patch version from Riot on startup
+let ddragonVersion = '14.4.1'; 
 fetch('https://ddragon.leagueoflegends.com/api/versions.json')
   .then(res => res.json())
   .then(versions => { ddragonVersion = versions[0]; });
 
-// Automatically sync the data on startup
 updateTracker();
 
-// THE SMART POST-GAME POLLER
 let matchFoundTime = null;
 
 async function waitForRiotServer(attempts = 0) {
-  if (attempts > 60) {
-    matchFoundTime = null;
-    return; // Failsafe timeout after 10 minutes
-  }
+  if (attempts > 60) { matchFoundTime = null; return; }
 
   const res = await window.api.autoDetect();
   if (res.success && res.data) {
@@ -251,9 +235,6 @@ async function waitForRiotServer(attempts = 0) {
 
     if (isNewMatch) {
       if (!matchFoundTime) matchFoundTime = Date.now();
-
-      // Riot's LP server is slower than the Match server. 
-      // We wait until LP changes, OR 90 seconds have passed (in case of a +0 LP dodge/remake).
       if (lpChanged || (Date.now() - matchFoundTime > 90000)) {
         updateTracker(); 
         matchFoundTime = null;
@@ -261,55 +242,38 @@ async function waitForRiotServer(attempts = 0) {
       }
     }
   }
-  
-  // Check again in 10 seconds
   setTimeout(() => waitForRiotServer(attempts + 1), 10000);
 }
 
-// Open Graph Event Listener
-document.getElementById('graphBtn').addEventListener('click', () => {
-  window.api.openGraph();
-});
+document.getElementById('graphBtn').addEventListener('click', () => window.api.openGraph());
 
-// THE ZERO RATE-LIMIT GAMEFLOW TRACKER
 let lastPhase = "None";
-
 setInterval(async () => {
   try {
     const currentPhase = await window.api.getGameflow();
     const isAutoHideEnabled = localStorage.getItem('autoHide') !== 'false'; 
     const graphBtn = document.getElementById('graphBtn');
     
-    // GRAPH WINDOW & BUTTON LOGIC
     if (currentPhase === "InProgress") {
-      graphBtn.style.display = 'none'; // Hide button in-game
-      window.api.closeGraph();         // Force close the 2nd window
+      graphBtn.style.display = 'none'; 
+      window.api.closeGraph();         
     } else {
-      graphBtn.style.display = 'block'; // Show button out of game
+      graphBtn.style.display = 'block'; 
     }
     
-    // AUTO-HIDE LOGIC
     if (isAutoHideEnabled && lastPhase !== currentPhase) {
-      if (currentPhase === "InProgress") {
-        window.api.setVisibility(false); // Hide when game starts
-      } else if (lastPhase === "InProgress") {
-        window.api.setVisibility(true);  // Show when game ends
-      }
+      if (currentPhase === "InProgress") window.api.setVisibility(false);
+      else if (lastPhase === "InProgress") window.api.setVisibility(true); 
     }
 
-    // CHECK: If it was active, and now it's literally anything else (Lobby, EndOfGame, etc.)
-    if (lastPhase === "InProgress" && currentPhase !== "InProgress") {
-      waitForRiotServer(); // Start the smart polling loop
-    }
-    
+    if (lastPhase === "InProgress" && currentPhase !== "InProgress") waitForRiotServer(); 
     lastPhase = currentPhase;
   } catch (e) {
-    // FAILSAFE: If the League client crashes/closes immediately after the Nexus explodes
     if (lastPhase === "InProgress") {
       const isAutoHideEnabled = localStorage.getItem('autoHide') !== 'false';
-      if (isAutoHideEnabled) window.api.setVisibility(true); // Ensure it un-hides!
+      if (isAutoHideEnabled) window.api.setVisibility(true); 
       waitForRiotServer();
     }
-    lastPhase = "None"; // Reset state safely
+    lastPhase = "None"; 
   }
 }, 5000);

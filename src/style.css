@@ -4,17 +4,25 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 10px; background: transparent; font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; }
+
+body { 
+  margin: 0; /* Remove static margins */
+  width: 100vw; height: 100vh; /* Fill the transparent window */
+  display: flex; justify-content: center; align-items: center; /* PERFECT CENTERING */
+  background: transparent; 
+  font-family: 'Segoe UI', Roboto, sans-serif; 
+  overflow: hidden; 
+}
 
 .tracker-card {
   width: 260px;
-  background: rgba(18, 20, 26, var(--bg-opacity)); /* Now uses the variable! */
+  background: rgba(18, 20, 26, var(--bg-opacity)); 
   color: #fff;
   border-radius: 10px;
   padding: 10px;
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  position: relative; /* Important for the overlay to fit */
+  position: relative; 
 }
 
 .wins-until { font-weight: bold; color: var(--accent-color); font-size: 11px; margin-bottom: 4px; }
@@ -41,17 +49,16 @@ body { margin: 10px; background: transparent; font-family: 'Segoe UI', Roboto, s
 .timer .value, .games-played .value { font-weight: 800; font-size: 12px; }
 .games-played { text-align: right; }
 
-/* Settings Overlay */
 .settings-btn {
   position: absolute; top: 12px; right: 12px; width: 14px; height: 14px;
   color: rgba(255,255,255,0.3); cursor: pointer; z-index: 10;
   transition: color 0.2s, transform 0.2s;
-  -webkit-app-region: no-drag; /* Makes it clickable through the drag region */
+  -webkit-app-region: no-drag; 
 }
 .settings-btn:hover { color: #fff; transform: rotate(45deg); }
 
 .graph-btn {
-  position: absolute; top: 12px; right: 36px; width: 14px; height: 14px; /* Shifted left by 24px */
+  position: absolute; top: 12px; right: 36px; width: 14px; height: 14px; 
   color: rgba(255,255,255,0.3); cursor: pointer; z-index: 10;
   transition: color 0.2s, transform 0.2s;
   -webkit-app-region: no-drag;
@@ -66,24 +73,10 @@ body { margin: 10px; background: transparent; font-family: 'Segoe UI', Roboto, s
   overflow-y: auto;
 }
 
-/* Custom Scrollbar for Settings Overlay */
-.settings-overlay::-webkit-scrollbar {
-  width: 6px; /* Makes the scrollbar thin and modern */
-}
-
-.settings-overlay::-webkit-scrollbar-track {
-  background: transparent; /* Hides the chunky grey track */
-  border-radius: 10px;
-}
-
-.settings-overlay::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15); /* Subtle transparent white */
-  border-radius: 10px; /* Rounds the edges of the draggable part */
-}
-
-.settings-overlay::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3); /* Brightens slightly when hovered */
-}
+.settings-overlay::-webkit-scrollbar { width: 6px; }
+.settings-overlay::-webkit-scrollbar-track { background: transparent; border-radius: 10px; }
+.settings-overlay::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+.settings-overlay::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
 .settings-title { font-weight: 800; font-size: 14px; text-align: center; color: #fff; letter-spacing: 1px; margin-bottom: 5px; }
 .setting-group { display: flex; flex-direction: column; gap: 5px; }
@@ -99,12 +92,15 @@ body { margin: 10px; background: transparent; font-family: 'Segoe UI', Roboto, s
 }
 .close-settings:hover { opacity: 0.8; }
 
-/* Shortcut Hint */
 .shortcut-hint {
-  text-align: center;
-  font-size: 8px;
-  color: rgba(255, 255, 255, 0.2); 
-  margin-top: 10px;
-  letter-spacing: 0.5px;
-  font-weight: bold;
+  text-align: center; font-size: 8px; color: rgba(255, 255, 255, 0.2); 
+  margin-top: 10px; letter-spacing: 0.5px; font-weight: bold;
 }
+
+/* NEW: Wipe Button Style */
+.wipe-btn {
+  background: rgba(255, 123, 123, 0.15); color: #ff7b7b;
+  border: 1px solid rgba(255, 123, 123, 0.3); padding: 8px; border-radius: 4px;
+  font-weight: bold; font-size: 10px; cursor: pointer; transition: 0.2s; margin-top: 5px;
+}
+.wipe-btn:hover { background: rgba(255, 123, 123, 0.3); }
