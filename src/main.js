@@ -50,7 +50,7 @@ app.whenReady().then(() => {
   let isLocked = true;
   let isHidden = false;
 
-  globalShortcut.register('CommandOrControl+Shift+L', () => {
+  globalShortcut.register('CommandOrControl+Shift+U', () => {
     if (isHidden) return;
     isLocked = !isLocked;
     win.setIgnoreMouseEvents(isLocked);
